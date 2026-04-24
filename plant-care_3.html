@@ -1,0 +1,1348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Plants" />
+<meta name="theme-color" content="#2d4a2e" />
+<link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='40' fill='%232d4a2e'/><text x='50%25' y='55%25' font-size='110' text-anchor='middle' dominant-baseline='middle'>🌿</text></svg>" />
+<title>Plant Care</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #f4f0e6; }
+  body { font-family: Georgia, serif; color: #1c2b1d; -webkit-text-size-adjust: 100%; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  button { font-family: inherit; }
+  #root { max-width: 680px; margin: 0 auto; padding-bottom: env(safe-area-inset-bottom, 0px); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+
+// ── Pure integer day math ────────────────────────────────────────────────────
+const DAYS_PER_MONTH = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+function ymdToDay(y, m, d) {
+  let n = (y - 2025) * 365 + Math.floor((y - 2025) / 4);
+  for (let i = 1; i < m; i++) n += DAYS_PER_MONTH[i];
+  if (m > 2 && y % 4 === 0) n++;
+  return n + (d - 1);
+}
+
+function dayToYMD(n) {
+  let y = 2025, m = 1;
+  while (true) {
+    const diy = y % 4 === 0 ? 366 : 365;
+    if (n < diy) break;
+    n -= diy; y++;
+  }
+  while (true) {
+    const dim = m === 2 && y % 4 === 0 ? 29 : DAYS_PER_MONTH[m];
+    if (n < dim) break;
+    n -= dim; m++;
+  }
+  return { y, m, d: n + 1 };
+}
+
+function dayToWeekday(n) { return (n + 3) % 7; }
+
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const WEEKDAYS_SHORT = ["S","M","T","W","T","F","S"];
+
+const now = new Date();
+const TODAY = ymdToDay(now.getFullYear(), now.getMonth() + 1, now.getDate());
+const LAST_WATERED = ymdToDay(2025, 4, 17);
+
+// ── Fertilizer tracking ──────────────────────────────────────────────────────
+// Plants that got worm castings today (Apr 23, 2026)
+const WORM_CASTINGS_TODAY = ymdToDay(2026, 4, 23);
+const WC_APPLIED_TODAY = [
+  "Fiddle Leaf Fig",
+  "Rubber Plant",
+  "Variegated Rubber Plant",
+  "Basil",
+  "Mint / Swedish Ivy",
+  "False Aralia",
+  "Ponytail Palm",
+  "Golden Pothos",
+  "Corn Plant",
+  "Snake Plant",
+];
+
+// ── Plant data ───────────────────────────────────────────────────────────────
+const PLANTS = [
+  // Bottom watering
+  {
+    name: "Basil", emoji: "🌱", days: 1, method: "bottom",
+    latin: "Ocimum basilicum",
+    waterNeed: 5, sunLevel: 5,
+    sun: "Full sun — 6–8 hrs", sunDetail: "Needs the most sun of all your plants. Sunniest windowsill or outdoors in warm weather. Low light = leggy, flavourless growth.",
+    humidity: "Likes warmth & moderate humidity. Keep away from cold drafts — below 50°F causes blackening.",
+    seasonal: "Pinch flower buds immediately to keep leaves tasty. Harvest regularly from the top down. Annual — replace each season.",
+    fertFreq: "Worm castings monthly · Banana water every 2 weeks",
+    fertDetail: "Top-dress with a thin layer of worm castings (about 1 tbsp) once a month. Water with banana peel water every 2 weeks for potassium boost. If using liquid fertilizer instead, use a diluted (half strength) higher-nitrogen formula every 3–4 weeks to encourage leafy growth. Avoid over-fertilizing — it can reduce flavour intensity.",
+    fertType: "🪱 Worm castings + 🍌 Banana water",
+    fertSchedule: { wc: 30, bm: null, bw: 14, bwSeason: "always" },
+    check: "Check daily — soil should feel damp 1\" down at all times",
+    indicator: "Wilts dramatically when thirsty — don't wait for this. Never let it dry out.",
+    prune: "Pinch just above a leaf pair using your fingers or small scissors every time you harvest. Never cut more than 1/3 of the plant at once. Remove flower buds the moment they appear or the leaves turn bitter.",
+    proTip: "Harvest from the top, always cutting just above a leaf pair. This keeps the plant bushy. Basil is annual — replace each season.",
+  },
+  {
+    name: "Sunflower", emoji: "🌻", days: 2, method: "bottom",
+    latin: "Helianthus annuus (dwarf)",
+    waterNeed: 4, sunLevel: 5,
+    sun: "Full sun — 6–8 hrs", sunDetail: "Already in a great window spot! Needs maximum direct sunlight to keep blooming. Rotate the pot every few days so all sides face the light.",
+    humidity: "Tolerates average indoor humidity. Keep away from cold drafts.",
+    seasonal: "Annual — blooms once. Deadhead spent flowers to encourage side buds.",
+    fertFreq: "Bone meal once at planting · Banana water every 2 weeks while blooming",
+    fertDetail: "Mix a small handful (30g) of bone meal into the top 5cm of soil. Water with banana peel water every 2 weeks while flowering. Alternatively, a balanced liquid fertilizer (or one slightly higher in phosphorus) every 2 weeks extends bloom period. Stop once flowers fade.",
+    fertType: "🦴 Bone meal (soil) + 🍌 Banana water (ongoing)",
+    fertSchedule: { wc: null, bm: "once", bw: 14, bwSeason: "blooming" },
+    check: "Check top 1\" of soil",
+    indicator: "Leaves droop and petals lose firmness when thirsty.",
+    prune: "Deadhead spent flowers by cutting just above the nearest leaf or bud. Do not cut the main stem. Dwarf sunflowers are annuals and won't rebloom.",
+    proTip: "Once the main flower fades, check for small side buds — they may open for a second flush of colour. Keep it in your sunniest spot to maximise bloom life.",
+  },
+  {
+    name: "Stocks 'Katz White'", emoji: "🌸", days: 3, method: "bottom",
+    latin: "Matthiola incana",
+    waterNeed: 3, sunLevel: 4,
+    sun: "Full sun — 6+ hrs", sunDetail: "Needs a bright sunny windowsill to germinate and grow strong. Once established, full sun produces the best fragrance and double flowers.",
+    humidity: "Prefers cool temperatures (55–65°F / 13–18°C). Victoria's spring climate is ideal. Avoid warm stuffy rooms.",
+    seasonal: "Sow seeds on the surface — they need light to germinate. Frost-tolerant, can go outdoors in Victoria from late April. Blooms in 60–70 days from sowing.",
+    fertFreq: "Worm castings when seedlings have 3 leaves · Bone meal at transplanting · Banana water every 2 weeks once budding",
+    fertDetail: "Start feeding once seedlings have 2–3 true leaves. Thin pinch of worm castings on seedlings, or a balanced liquid fertilizer at half strength every 2–3 weeks. Small handful of bone meal (30g) at transplant. Banana peel water every 2 weeks once budding — switch to a low-nitrogen, higher-phosphorus feed once buds form.",
+    fertType: "🪱 Seedling · 🦴 Transplant · 🍌 Budding",
+    fertSchedule: { wc: null, bm: "once", bw: 14, bwSeason: "blooming" },
+    check: "Check top 1\" of soil",
+    indicator: "Seedlings should never fully dry out. Yellowing = overwatering.",
+    prune: "Pinch out growing tip at 10cm tall for bushier growth. Cut spent spikes to nearest healthy leaf.",
+    proTip: "Don't cover seeds when sowing — they need light to germinate! Thin seedlings to 6–8\" apart. The fragrance is strongest in the evening.",
+  },
+  {
+    name: "Albion Strawberry", emoji: "🍓", days: 2, method: "bottom",
+    latin: "Fragaria × ananassa 'Albion'",
+    waterNeed: 4, sunLevel: 5,
+    sun: "Full sun — 6–8 hrs", sunDetail: "Already on a sunny windowsill — perfect! Needs as much direct sun as possible for fruiting. Move outdoors to a balcony in summer for best results. More sun = more berries.",
+    humidity: "Prefers good air circulation. Avoid humid, stuffy spots which encourage grey mould (botrytis) on the fruit.",
+    seasonal: "Albion is an everbearing variety — fruits spring through fall rather than just once. Remove runners (long stems with baby plants) to keep energy focused on fruit, unless propagating. Reduce watering in winter.",
+    fertFreq: "Bone meal once now · Worm castings monthly · Banana water every 2 weeks while flowering",
+    fertDetail: "Small handful (30g) of bone meal in top 3cm. 1–2 tbsp worm castings monthly through summer. Banana peel water every 2 weeks while flowering/fruiting — a high-potassium fertilizer (tomato fertilizer works great) encourages fruit development over leafy growth. Switch to a balanced fertilizer in early spring before flowering begins.",
+    fertType: "🦴 Now · 🪱 Monthly · 🍌 Every 2 weeks",
+    fertSchedule: { wc: 30, bm: "once", bw: 14, bwSeason: "blooming" },
+    check: "Check top 1\" of soil — check daily in warm weather, strawberries are thirsty!",
+    indicator: "Leaves curl inward when thirsty. Flowers and fruit drop if dry.",
+    prune: "Cut runners at the base as they appear. Remove dead leaves. Cut all foliage to 5cm above crown after fall fruiting.",
+    proTip: "It's already flowering — great sign! Gently tap or shake the pot when flowers are open to help pollinate them indoors. Once fruit sets, keep berries off damp soil to prevent rot.",
+  },
+  {
+    name: "Mint / Swedish Ivy", emoji: "🌿", days: 6, method: "bottom",
+    latin: "Plectranthus australis",
+    waterNeed: 3, sunLevel: 3,
+    sun: "Bright indirect light", sunDetail: "Does well in bright indirect light. A few hours of gentle morning sun is ideal. Avoid harsh afternoon direct sun.",
+    humidity: "Likes moderate humidity. Mist occasionally if dry.",
+    seasonal: "Pinch stem tips every couple of weeks to encourage bushy growth and prevent legginess. Fertilize spring and summer only.",
+    fertFreq: "Worm castings monthly (April–August)",
+    fertDetail: "1–2 tbsp worm castings monthly during growing season. Light feeder — overfeeding encourages fast leggy growth over compact foliage. If using liquid fertilizer, a balanced formula at half strength monthly is plenty. Banana water optional once a month.",
+    fertType: "🪱 Worm castings only",
+    fertSchedule: { wc: 30, bm: null, bw: null, bwSeason: null },
+    check: "Check top 1\" of soil",
+    indicator: "Leaves droop and lose perkiness when thirsty.",
+    prune: "Pinch top 2–3cm of stems just above a leaf pair every 2 weeks. Cut longer stems back by half if unruly.",
+    proTip: "This plant propagates incredibly easily in water — snip a stem, pop it in a glass, and you'll have roots in a week!",
+  },
+  {
+    name: "Golden Pothos", emoji: "🍃", days: 8, method: "bottom",
+    latin: "Epipremnum aureum",
+    waterNeed: 3, sunLevel: 2,
+    sun: "Low to medium indirect light", sunDetail: "One of the most adaptable plants — thrives away from windows. More light brings out more golden variegation on the leaves.",
+    humidity: "Tolerates average humidity. Will appreciate an occasional mist but doesn't need it.",
+    seasonal: "Feed monthly in spring/summer. The trailing vines can be trimmed to encourage bushier growth from the top.",
+    fertFreq: "Worm castings monthly (April–September)",
+    fertDetail: "1–2 tbsp worm castings monthly during growing season — gentle and balanced. If using liquid fertilizer, a balanced formula monthly during the growing season. Yellowing leaves despite good watering can indicate it's time to feed. Banana water once a month is a nice optional boost.",
+    fertType: "🪱 Worm castings · 🍌 Banana water (optional)",
+    fertSchedule: { wc: 30, bm: null, bw: 30, bwSeason: "growing" },
+    check: "Check top 1\" of soil",
+    indicator: "Leaves curl when thirsty and lose glossy sheen. Yellowing lower leaves = overwatering.",
+    prune: "Cut vines just above a node. Pruned cuttings root easily in water.",
+    proTip: "Train vines up a moss pole for upward growth, or let them cascade dramatically. Propagates easily in a glass of water!",
+  },
+  {
+    name: "Variegated Rubber Plant", emoji: "🌿", days: 8, method: "bottom",
+    latin: "Ficus elastica 'Tineke'",
+    waterNeed: 3, sunLevel: 3,
+    sun: "Bright indirect light", sunDetail: "Thrives near a window with filtered light. Avoid direct afternoon sun — it scorches the cream variegation.",
+    humidity: "Average household humidity fine (40–60%). No misting needed.",
+    seasonal: "Spring/Summer: water more often, fertilize monthly. Fall/Winter: cut back watering, stop fertilizing.",
+    fertFreq: "Worm castings monthly (April–September)",
+    fertDetail: "2 tbsp worm castings monthly during growing season, watered in gently. If using liquid fertilizer instead, a balanced formula (e.g. 10-10-10) diluted to half strength works well. Do not fertilize in fall or winter when growth slows.",
+    fertType: "🪱 Worm castings only",
+    fertSchedule: { wc: 30, bm: null, bw: null, bwSeason: null },
+    check: "Check top 1–2\" of soil",
+    indicator: "Leaves become less firm and slightly dull.",
+    prune: "Cut above a leaf node with alcohol-wiped scissors. White sap irritates skin — wash hands. Best pruned in spring.",
+    proTip: "Wipe leaves monthly with a damp cloth to keep them glossy. Rotate quarterly for even growth.",
+  },
+  {
+    name: "False Aralia", emoji: "🌳", days: 8, method: "bottom",
+    latin: "Plerandra elegantissima",
+    waterNeed: 2, sunLevel: 3,
+    sun: "Bright indirect light", sunDetail: "Needs consistent bright indirect light to thrive. Low light causes the lacy leaves to drop. Avoid drafts too.",
+    humidity: "Loves humidity! Mist regularly, use a pebble tray, or place near a humidifier.",
+    seasonal: "Keep away from temperature fluctuations. Leaf drop is common when moved or stressed. Once settled, leave it alone.",
+    fertFreq: "Worm castings every 6–8 weeks (spring & summer only)",
+    fertDetail: "Thin layer (1 tbsp) every 6–8 weeks spring/summer only. Highly sensitive to overfeeding — worm castings are the safest option. If using liquid fertilizer instead, a balanced formula at half strength every 4–6 weeks. Skip entirely in fall and winter.",
+    fertType: "🪱 Worm castings only (small amounts)",
+    fertSchedule: { wc: 49, bm: null, bw: null, bwSeason: null },
+    check: "Check top 1\" of soil",
+    indicator: "Leaflets droop when thirsty. Drops leaves when overwatered — very sensitive to soggy soil.",
+    prune: "Prune sparingly — slow-growing. Cut back by up to one third in spring if too tall.",
+    proTip: "False Aralia is sensitive to change — don't move it once it's happy. Keep it away from cold windows and AC vents.",
+  },
+  {
+    name: "Club Moss", emoji: "🌿", days: 3, method: "bottom",
+    latin: "Selaginella kraussiana",
+    waterNeed: 5, sunLevel: 2,
+    lastWatered: ymdToDay(2026, 4, 23),
+    sun: "Bright indirect light (no direct sun)", sunDetail: "Bright indirect light only — direct sun scorches the delicate fronds immediately. A north or east-facing windowsill, or a few feet back from a brighter window, is ideal.",
+    humidity: "Demands high humidity (60%+) — this is the #1 care requirement. Use a pebble tray, a humidifier, or keep it in a terrarium. Crisps up and dies fast in dry air.",
+    seasonal: "Keep consistently moist year-round — never let it dry out, not even once. Slightly less water in winter but still never fully dry.",
+    fertFreq: "Worm castings monthly (April–September)",
+    fertDetail: "1 tsp of worm castings monthly during growing season — a very light hand, this is a small delicate plant. If using liquid fertilizer, a balanced formula diluted to quarter strength monthly. No bone meal, no banana water.",
+    fertType: "🪱 Worm castings only (very light)",
+    fertSchedule: { wc: 30, bm: null, bw: null, bwSeason: null },
+    check: "Check daily — soil must stay consistently moist at all times",
+    indicator: "Fronds crisp and turn brown within hours of drying out, and often don't recover. Never let the soil dry out — this is the plant's one hard rule.",
+    prune: "Trim any brown or crisped fronds at the base with small scissors. Pinch growing tips to encourage bushier growth. Propagates easily — cuttings will root in moist soil or water.",
+    proTip: "If your home is dry, the easiest way to keep this plant alive is to plant it in a covered glass container or terrarium — it will thrive with almost no attention in that environment.",
+  },
+  {
+    name: "Fittonia", emoji: "🌱", days: 3, method: "bottom",
+    latin: "Fittonia albivenis",
+    waterNeed: 4, sunLevel: 2,
+    lastWatered: ymdToDay(2026, 4, 23),
+    sun: "Bright indirect light (no direct sun)", sunDetail: "Bright indirect light brings out the best vein colour. Direct sun bleaches and burns the leaves. Tolerates medium-low light but becomes leggy.",
+    humidity: "Loves humidity (60%+). Mist regularly or keep near a humidifier. Thrives in bathrooms and terrariums.",
+    seasonal: "Water consistently year-round. Slightly less in winter but never allow to fully dry out. Pinch growing tips monthly to keep it compact.",
+    fertFreq: "Worm castings monthly (April–September)",
+    fertDetail: "1 tsp of worm castings monthly during growing season — light feeder. If using liquid fertilizer, a balanced formula diluted to half strength monthly. Skip entirely in winter.",
+    fertType: "🪱 Worm castings only",
+    fertSchedule: { wc: 30, bm: null, bw: null, bwSeason: null },
+    check: "Check daily — the top of the soil should always feel slightly damp",
+    indicator: "Dramatically collapses flat when thirsty, leaves look totally dead. Water immediately — it will perk back up within 1–2 hours. Consistent wilt-revive cycles stress the plant long-term, so try to catch it before it flops.",
+    prune: "Pinch growing tips just above a leaf pair to encourage bushiness and prevent leggy growth. Remove any dead or browned leaves at the base. Pruned tips propagate easily in water or moist soil.",
+    proTip: "The dramatic wilt is a feature not a bug — it tells you exactly when to water. But don't rely on it as your schedule; repeated collapse shortens the plant's life. Bottom water to keep the intricate veining clean and prevent water spots on the leaves.",
+  },
+  // Top watering
+  {
+    name: "Rubber Plant", emoji: "🌿", days: 8, method: "top",
+    latin: "Ficus elastica 'Burgundy'",
+    waterNeed: 3, sunLevel: 3,
+    sun: "Bright indirect light", sunDetail: "Thrives near a bright window. The darker the leaf, the more light it can absorb. Direct sun can be tolerated in winter.",
+    humidity: "Average household humidity is fine. No special requirements.",
+    seasonal: "Fertilize monthly in spring/summer with a balanced liquid fertilizer. Reduce watering in winter as growth slows.",
+    fertFreq: "Worm castings monthly (April–September)",
+    fertDetail: "2 tbsp worm castings monthly during growing season, watered in well. If using liquid fertilizer instead, a balanced formula (10-10-10) at half strength once a month through the growing season. Stop completely from October through March.",
+    fertType: "🪱 Worm castings only",
+    fertSchedule: { wc: 30, bm: null, bw: null, bwSeason: null },
+    check: "Check top 1–2\" of soil",
+    indicator: "Leaves lose firmness. Yellowing = overwatering.",
+    prune: "Cut above a leaf node with alcohol-wiped scissors. Best pruned in spring.",
+    proTip: "Wipe leaves monthly with a damp cloth — dust blocks light absorption and dulls that beautiful burgundy colour.",
+  },
+  {
+    name: "Fiddle Leaf Fig", emoji: "🎻", days: 8, method: "top",
+    latin: "Ficus lyrata",
+    waterNeed: 3, sunLevel: 4,
+    sun: "Bright indirect light (window)", sunDetail: "Already in a perfect spot. Do not move — drops leaves in protest.",
+    humidity: "Prefers 30–40%+ humidity. Keep away from drafts and vents.",
+    seasonal: "Spring/summer: water more, fertilize monthly. Fall/winter: reduce watering. Never move it.",
+    fertFreq: "Worm castings monthly (April–September)",
+    fertDetail: "2 tbsp worm castings monthly during growing season. Perfect for fiddle leafs — sensitive to chemical fertilizers. Stop in fall/winter.",
+    fertType: "🪱 Worm castings only",
+    fertSchedule: { wc: 30, bm: null, bw: null, bwSeason: null },
+    check: "Check top 1\" of soil",
+    indicator: "Brown spots can signal both over and underwatering. Top inch dry = water.",
+    prune: "Only prune in spring. Notch stem above a node for branching. Remove brown leaves by pulling gently.",
+    proTip: "Wipe leaves monthly with a damp cloth. Rotate the pot a quarter-turn every few weeks for even growth — but otherwise don't move it.",
+  },
+  {
+    name: "Corn Plant", emoji: "🌴", days: 10, method: "top",
+    latin: "Dracaena fragrans",
+    waterNeed: 2, sunLevel: 3,
+    sun: "Medium indirect light", sunDetail: "Prefers bright indirect light but tolerates lower light. Yellowing leaves suggest moving it closer to a window would help.",
+    humidity: "Appreciates higher humidity. Mist occasionally or use a humidifier nearby.",
+    seasonal: "Fertilize lightly in spring and summer only. Sensitive to cold — keep away from drafts and below 55°F / 13°C.",
+    fertFreq: "Worm castings every 6–8 weeks (spring & summer only)",
+    fertDetail: "1–2 tbsp every 6–8 weeks in spring/summer. Sensitive to fluoride and salt buildup — flush soil with plain water every 2–3 months. Avoid high-fluoride liquid fertilizers; if using one, a balanced formula at half strength every 6–8 weeks.",
+    fertType: "🪱 Worm castings only",
+    fertSchedule: { wc: 49, bm: null, bw: null, bwSeason: null },
+    check: "Check top 1–2\" of soil — keep lightly moist but never waterlogged",
+    indicator: "Leaf tips brown when underwatered or fluoride builds up. Yellowing leaves can indicate it needs more light or more consistent watering.",
+    prune: "Cut brown leaf tips at a slight angle. Cut whole canes straight across in spring to control height.",
+    proTip: "Very sensitive to fluoride — use filtered or rainwater. Yellow leaf tips are an early sign of fluoride or salt buildup.",
+  },
+  {
+    name: "Lavender", emoji: "💜", days: 12, method: "top",
+    latin: "Lavandula angustifolia",
+    waterNeed: 2, sunLevel: 5,
+    sun: "Full sun — 6+ hrs", sunDetail: "Needs your sunniest window. Can be moved outdoors in warmer months. Insufficient light causes leggy growth and poor blooming.",
+    humidity: "Prefers dry air. Avoid misting and humid spots like bathrooms.",
+    seasonal: "Prune lightly after each bloom cycle. Deadhead spent flowers to encourage reblooming. In winter, reduce watering significantly.",
+    fertFreq: "Bone meal once in early spring · Banana water every 3–4 weeks while blooming",
+    fertDetail: "Small handful of bone meal (30g) in top 3cm in early spring — only feeding needed all year. Banana peel water every 3–4 weeks while blooming. If using liquid fertilizer, use a low-nitrogen one or a formula for flowering plants. Over-fertilizing causes lush leafy growth at the expense of blooms. No worm castings.",
+    fertType: "🦴 Bone meal (spring) · 🍌 Banana water",
+    fertSchedule: { wc: null, bm: "once", bw: 25, bwSeason: "blooming" },
+    check: "Check full depth — soil must be completely dry. Overwatering is the #1 killer.",
+    indicator: "Leaves soften or stems go limp when thirsty. Yellowing = overwatering.",
+    prune: "Prune after flowering — cut spikes to just above leafy growth. NEVER cut into woody stems. In spring, trim back by one third staying in green growth only.",
+    proTip: "Use a terracotta pot with excellent drainage and gritty/sandy soil. Lavender hates wet feet.",
+  },
+  {
+    name: "Ponytail Palm", emoji: "🌴", days: 18, method: "top",
+    latin: "Beaucarnea recurvata",
+    waterNeed: 1, sunLevel: 4,
+    sun: "Bright direct to indirect light", sunDetail: "Loves as much light as possible. A sunny window is ideal. Can handle some direct indoor sun without issue.",
+    humidity: "Thrives in dry air. No humidity requirements — perfect for dry apartments.",
+    seasonal: "Barely needs fertilizing — once in spring is enough. Very slow-growing; repot only when severely rootbound.",
+    fertFreq: "Worm castings once in spring only",
+    fertDetail: "1 tbsp worm castings in early spring (April) — that's it for the entire year. Stores nutrients in its trunk. If using liquid instead, a slow-release balanced or cactus fertilizer once in early spring. Over-fertilizing causes weak, rapid growth.",
+    fertType: "🪱 Once per year in spring",
+    fertSchedule: { wc: "spring", bm: null, bw: null, bwSeason: null },
+    check: "Check full depth — soil must be bone dry. Water deeply, then leave it alone.",
+    indicator: "Swollen trunk stores water — won't show thirst easily. Stick finger in fully.",
+    prune: "Minimal pruning. Trim brown leaf tips at an angle. NEVER cut central growing tip or trunk.",
+    proTip: "Never let this plant sit in water — root rot is the only real threat. Use a well-draining cactus or succulent mix.",
+  },
+  {
+    name: "Snake Plant", emoji: "🐍", days: 21, method: "top",
+    latin: "Dracaena trifasciata",
+    waterNeed: 1, sunLevel: 2,
+    sun: "Low to bright indirect light", sunDetail: "Extremely adaptable — tolerates dim corners but grows faster with more light. Avoid harsh direct sun on the leaves.",
+    humidity: "Tolerates dry air very well. No special humidity needs.",
+    seasonal: "Barely needs fertilizer. Once in spring and once in summer is plenty. Essentially ignore it in winter.",
+    fertFreq: "Worm castings twice a year — once in spring, once in mid-summer",
+    fertDetail: "1 tbsp worm castings in April and again in July — that's it. If using liquid fertilizer instead, a balanced formula at half strength in spring and once mid-summer. Never fertilize in fall or winter.",
+    fertType: "🪱 Twice per year only",
+    fertSchedule: { wc: "biannual", bm: null, bw: null, bwSeason: null },
+    check: "Check full depth — soil must be bone dry before watering",
+    indicator: "Wrinkled or soft leaves = thirsty. Mushy base = overwatered. Root rot from overwatering is the only real threat.",
+    prune: "Cut leaves at soil level with clean sharp scissors. Cut leaves don't regrow from the cut, but new leaves emerge from soil.",
+    proTip: "Brown tips usually mean fluoride in tap water — switch to filtered water. Root rot from overwatering is the only real threat.",
+  },
+  {
+    name: "Olive Tree", emoji: "🫒", days: 10, method: "top",
+    latin: "Olea europaea",
+    waterNeed: 2, sunLevel: 5,
+    lastWatered: ymdToDay(2026, 4, 23),
+    sun: "Full sun — 6+ hours daily", sunDetail: "Needs as much direct sun as possible — the more sun, the healthier the tree. A sunny south-facing window is ideal. Can be moved outdoors once nights stay above 10°C. Insufficient light causes leggy, weak growth and leaf drop.",
+    humidity: "Prefers dry air. Avoid humid spots like bathrooms. Tolerates Victoria's coastal humidity without issue but don't mist.",
+    seasonal: "Water deeply when soil is dry, then let it dry out fully before watering again. Reduce watering significantly in winter (every 3–4 weeks). Overwintering indoors is essential in Victoria — not frost-hardy below -5°C.",
+    fertFreq: "Worm castings every 6–8 weeks (spring & summer only)",
+    fertDetail: "1–2 tbsp worm castings every 6–8 weeks from April to August. If using liquid fertilizer instead, a citrus or Mediterranean-plant formula at half strength every 6–8 weeks in growing season. Too much nitrogen causes excessive leaf growth and reduces any chance of fruiting. Stop completely in fall and winter.",
+    fertType: "🪱 Worm castings only",
+    fertSchedule: { wc: 49, bm: null, bw: null, bwSeason: null },
+    check: "Check full depth — soil must be dry at least 2\" down before watering",
+    indicator: "Leaves curl slightly and soften when thirsty. Yellowing and dropping leaves = overwatering (the #1 killer). Silvery-green is normal and healthy.",
+    prune: "Prune in spring to shape the canopy. Cut just above an outward-facing leaf pair to encourage a balanced crown. Remove any crossing or inward-growing branches. Can be kept small as an indoor tree or allowed to grow larger in summer outdoors. Young trees benefit from pinching tips to encourage branching.",
+    proTip: "Olives thrive on neglect — more trees die from overwatering and pampering than from drought. Use a well-draining mix (add perlite or sand to potting soil), never let the pot sit in water, and resist the urge to water on a schedule. The silvery underside of the leaves is part of its beauty, not a sign of stress.",
+  },
+  {
+    name: "Dahlia 'Jowey Frambo'", emoji: "🌺", days: 3, method: "top", dormant: true,
+    latin: "Dahlia × hybrida",
+    waterNeed: 3, sunLevel: 5,
+    sun: "Full sun — 6–8 hrs", sunDetail: "Plant in your sunniest outdoor spot or balcony once risk of frost has passed (mid-May in Victoria). Full sun produces the most prolific blooms.",
+    humidity: "Tolerates Victoria's coastal humidity. Good air circulation helps prevent powdery mildew.",
+    seasonal: "Plant tuber in May once nights stay above 10°C, eye facing up, 4–6\" deep. Blooms July–October. Dig up tubers after first frost and store indoors over winter.",
+    fertFreq: "Bone meal at planting · Banana water every 2 weeks · Worm castings monthly",
+    fertDetail: "Large handful (60g) bone meal in planting hole. 2 tbsp worm castings monthly once growing. Banana peel water every 2 weeks from sprouting to first bud. If using liquid fertilizer, use a low-nitrogen formula higher in phosphorus and potassium — too much nitrogen = lots of leaves, few flowers. Stop feeding once buds open.",
+    fertType: "🦴 Planting · 🪱 Monthly · 🍌 Every 2 weeks",
+    fertSchedule: { wc: 30, bm: "once", bw: 14, bwSeason: "blooming" },
+    check: "Do not check — do not water until sprouts appear. Water soil once lightly at planting, then stop completely until sprouts emerge. This is the #1 cause of tuber rot.",
+    indicator: "No watering until sprouts appear. Tuber has stored energy.",
+    prune: "Pinch central tip at 30cm tall for more flowers. Disbud for larger blooms. Deadhead regularly. Cut to 15cm after first frost.",
+    proTip: "Pinch the growing tip when the plant reaches 12\" tall — this produces more stems and more flowers. Stake early as this variety can get top-heavy.",
+  },
+  {
+    name: "Dahlia 'Sturm Sweet Maria'", emoji: "🌸", days: 3, method: "top", dormant: true,
+    latin: "Dahlia × hybrida",
+    waterNeed: 3, sunLevel: 5,
+    sun: "Full sun — 6–8 hrs", sunDetail: "Full sun is essential for this peachy decorative dahlia. Partial shade reduces bloom size and frequency significantly.",
+    humidity: "Tolerates Victoria's mild coastal climate. Ensure good air circulation around the plant.",
+    seasonal: "Plant in May, same timing as 'Jowey Frambo'. Deadhead regularly to keep blooming through October.",
+    fertFreq: "Bone meal at planting · Banana water every 2 weeks · Worm castings monthly",
+    fertDetail: "Large handful bone meal (60g) in planting hole — especially important for this large variety. 2 tbsp worm castings monthly. Banana peel water every 2 weeks from sprouting until first bud. If using liquid fertilizer, a phosphorus-rich formula (bone meal or bloom booster) encourages the large decorative blooms this variety is known for.",
+    fertType: "🦴 Planting · 🪱 Monthly · 🍌 Every 2 weeks",
+    fertSchedule: { wc: 30, bm: "once", bw: 14, bwSeason: "blooming" },
+    check: "Do not check — do not water until sprouts appear. Same as 'Jowey Frambo' — water soil once lightly at planting, then stop until sprouts emerge. Once growing, top water at the base only to keep foliage dry and prevent powdery mildew.",
+    indicator: "No watering until sprouts appear.",
+    prune: "Pinch central tip at 30cm. Disbud for larger blooms. Deadhead consistently. Cut to 15cm after frost.",
+    proTip: "'Sturm Sweet Maria' produces large blooms — disbud (remove side buds) to get fewer but larger statement flowers, or leave all buds for a fuller display.",
+  },
+];
+
+function isWaterDay(plant, n) {
+  if (plant.dormant) return false;
+  const base = plant.lastWatered != null ? plant.lastWatered : LAST_WATERED;
+  const diff = n - base;
+  return diff >= 0 && diff % plant.days === 0;
+}
+
+// Returns { wc: bool, bw: bool } for a given day and plant
+function fertTypesOnDay(plant, n) {
+  if (!plant.fertSchedule) return { wc: false, bw: false };
+  const wcDay = nextWormCastings(plant);
+  const out = { wc: false, bw: false };
+
+  if (wcDay !== null) {
+    // Check if this day matches worm casting schedule
+    const interval = plant.fertSchedule.wc;
+    if (interval === "spring") {
+      // Only one day per year (April 15 baseline, or today if applied today)
+      const wasTodayApplied = WC_APPLIED_TODAY.includes(plant.name);
+      const baseDay = wasTodayApplied ? WORM_CASTINGS_TODAY : ymdToDay(dayToYMD(n).y, 4, 15);
+      if (n === baseDay) out.wc = true;
+      if (n === wcDay) out.wc = true;
+    } else if (interval === "biannual") {
+      const y = dayToYMD(n).y;
+      const april = ymdToDay(y, 4, 15);
+      const july = ymdToDay(y, 7, 15);
+      const wasTodayApplied = WC_APPLIED_TODAY.includes(plant.name);
+      if (wasTodayApplied && n === WORM_CASTINGS_TODAY) out.wc = true;
+      if (n === april || n === july) out.wc = true;
+      if (n === wcDay) out.wc = true;
+    } else if (typeof interval === "number") {
+      // Regular interval — mark every Nth day from baseline, within growing season
+      const wasTodayApplied = WC_APPLIED_TODAY.includes(plant.name);
+      const baseline = wasTodayApplied ? WORM_CASTINGS_TODAY : ymdToDay(2026, 4, 1);
+      const diff = n - baseline;
+      if (diff >= 0 && diff % interval === 0) {
+        // Only during growing season (April–September)
+        const m = dayToYMD(n).m;
+        if (m >= 4 && m <= 9) out.wc = true;
+      }
+    }
+  }
+
+  // Banana water
+  if (plant.fertSchedule.bw !== null) {
+    const bwDay = nextBananaWater(plant);
+    if (bwDay !== null) {
+      const interval = plant.fertSchedule.bw;
+      // Check if n matches intervals from bwDay going forward
+      const diff = n - bwDay;
+      if (diff >= 0 && diff % interval === 0) {
+        out.bw = true;
+      }
+    }
+  }
+
+  return out;
+}
+
+function nextFertDay(plant) {
+  if (!plant.fertSchedule) return null;
+  const wc = nextWormCastings(plant);
+  const bw = nextBananaWater(plant);
+  if (wc === null && bw === null) return null;
+  if (wc === null) return bw;
+  if (bw === null) return wc;
+  return Math.min(wc, bw);
+}
+
+function nextWater(plant) {
+  if (plant.dormant) return null;
+  const base = plant.lastWatered != null ? plant.lastWatered : LAST_WATERED;
+  const diff = TODAY - base;
+  const cycles = Math.floor(diff / plant.days);
+  const candidate = base + cycles * plant.days;
+  return candidate >= TODAY ? candidate : candidate + plant.days;
+}
+
+// ── Fertilizer scheduling ────────────────────────────────────────────────────
+// Returns next worm castings date
+function nextWormCastings(plant) {
+  if (!plant.fertSchedule || plant.fertSchedule.wc === null) return null;
+
+  // Handle special schedules
+  if (plant.fertSchedule.wc === "spring") {
+    // Ponytail palm — once in April each year
+    const thisYear = dayToYMD(TODAY).y;
+    const aprilDate = ymdToDay(thisYear, 4, 15);
+    if (TODAY <= aprilDate) return aprilDate;
+    return ymdToDay(thisYear + 1, 4, 15);
+  }
+
+  if (plant.fertSchedule.wc === "biannual") {
+    // Snake plant — April and July
+    const thisYear = dayToYMD(TODAY).y;
+    const april = ymdToDay(thisYear, 4, 15);
+    const july = ymdToDay(thisYear, 7, 15);
+    if (TODAY <= april) return april;
+    if (TODAY <= july) return july;
+    return ymdToDay(thisYear + 1, 4, 15);
+  }
+
+  // Regular interval (days)
+  const interval = plant.fertSchedule.wc;
+
+  // Check if plant was treated today
+  const wasTreatedToday = WC_APPLIED_TODAY.includes(plant.name) && TODAY >= WORM_CASTINGS_TODAY;
+  const baseline = wasTreatedToday ? WORM_CASTINGS_TODAY : ymdToDay(2026, 4, 1); // Default start of growing season
+
+  // Only during growing season (roughly April–September for most)
+  const next = baseline + interval;
+
+  // If we're past September, push to next April
+  const nextYMD = dayToYMD(next);
+  if (nextYMD.m > 9) {
+    return ymdToDay(nextYMD.y + 1, 4, 1);
+  }
+  return next;
+}
+
+function nextBananaWater(plant) {
+  if (!plant.fertSchedule || plant.fertSchedule.bw === null) return null;
+  const interval = plant.fertSchedule.bw;
+
+  // For flowering-dependent plants, only schedule if currently flowering
+  // Basil and Pothos get it year-round/growing season
+  if (plant.fertSchedule.bwSeason === "blooming") {
+    // Strawberry is currently flowering, everyone else TBD
+    if (plant.name === "Albion Strawberry") {
+      return ymdToDay(2026, 4, 30); // Next application ~1 week out
+    }
+    return null; // Not currently applicable
+  }
+
+  // Growing season plants
+  return ymdToDay(2026, 5, 1); // Start of May
+}
+
+function wasWormCastingsToday(plantName) {
+  return WC_APPLIED_TODAY.includes(plantName);
+}
+
+// ── Styles ───────────────────────────────────────────────────────────────────
+const C = {
+  moss: "#2d4a2e",
+  sage: "#6b9e6f",
+  sageLight: "#a8c9a8",
+  cream: "#f4f0e6",
+  parchment: "#ede8da",
+  terracotta: "#c4714a",
+  gold: "#b8963e",
+  muted: "#7a7264",
+  ink: "#1c2b1d",
+  rule: "rgba(107,158,111,0.18)",
+  blue: "#5a8fa8",
+  blueLight: "#e8f2f8",
+  purple: "#8b6b9e",
+  amber: "#d4a040",
+};
+
+function App() {
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [fertWeekOffset, setFertWeekOffset] = useState(0);
+  const [tab, setTab] = useState("schedule");
+
+  const weekStart = TODAY + weekOffset * 7;
+  const days = Array.from({ length: 7 }, (_, i) => weekStart + i);
+  const ws = dayToYMD(days[0]), we = dayToYMD(days[6]);
+
+  const fertWeekStart = TODAY + fertWeekOffset * 7;
+  const fertDays = Array.from({ length: 7 }, (_, i) => fertWeekStart + i);
+  const fws = dayToYMD(fertDays[0]), fwe = dayToYMD(fertDays[6]);
+
+  const dueToday = PLANTS.filter(p => isWaterDay(p, TODAY));
+  const fertDueToday = PLANTS.filter(p => {
+    const nw = nextWormCastings(p);
+    return nw === TODAY;
+  });
+
+  const activePlants = PLANTS.filter(p => !p.dormant);
+  const sortedSummary = activePlants
+    .map(p => ({ p, nxt: nextWater(p) }))
+    .sort((a, b) => a.nxt - b.nxt);
+
+  // Fertilizer summary
+  const fertSummary = PLANTS
+    .map(p => ({
+      p,
+      wc: nextWormCastings(p),
+      bw: nextBananaWater(p),
+    }))
+    .filter(x => x.wc !== null || x.bw !== null)
+    .sort((a, b) => {
+      const aNext = Math.min(a.wc || 999999, a.bw || 999999);
+      const bNext = Math.min(b.wc || 999999, b.bw || 999999);
+      return aNext - bNext;
+    });
+
+  const groups = [
+    { method: "bottom", label: "⬇ Bottom Water", color: C.moss },
+    { method: "top", label: "⬆ Top Water", color: C.blue },
+  ];
+
+  const todayYMD = dayToYMD(TODAY);
+
+  return (
+    <div style={{
+      fontFamily: "'Georgia', serif",
+      background: C.cream,
+      minHeight: "100vh",
+      paddingBottom: 80,
+      color: C.ink,
+      maxWidth: 680,
+      margin: "0 auto",
+    }}>
+      {/* Header */}
+      <div style={{
+        background: C.moss,
+        padding: "28px 20px 20px",
+        color: "white",
+      }}>
+        <div style={{ fontSize: 11, letterSpacing: "0.18em", textTransform: "uppercase", opacity: 0.65, fontFamily: "monospace", marginBottom: 4 }}>
+          Plant Care
+        </div>
+        <h1 style={{ fontSize: 26, fontWeight: "normal", margin: 0, lineHeight: 1.1 }}>
+          Watering & Fertilizing
+        </h1>
+        <div style={{ fontSize: 11, opacity: 0.6, marginTop: 6, fontFamily: "monospace", letterSpacing: "0.06em" }}>
+          Today: {MONTHS[todayYMD.m-1]} {todayYMD.d}, {todayYMD.y} · 19 plants
+        </div>
+
+        {dueToday.length > 0 && (
+          <div style={{
+            marginTop: 14,
+            background: "rgba(255,255,255,0.12)",
+            borderRadius: 10,
+            padding: "10px 14px",
+            border: "1px solid rgba(255,255,255,0.2)",
+          }}>
+            <div style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", opacity: 0.7, marginBottom: 6, fontFamily: "monospace" }}>
+              💧 Water today
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {dueToday.map(p => (
+                <span key={p.name} style={{
+                  background: "rgba(255,255,255,0.15)",
+                  border: "1px solid rgba(255,255,255,0.25)",
+                  borderRadius: 20,
+                  padding: "3px 10px",
+                  fontSize: 12,
+                }}>
+                  {p.emoji} {p.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {fertDueToday.length > 0 && (
+          <div style={{
+            marginTop: 10,
+            background: "rgba(212,160,64,0.25)",
+            borderRadius: 10,
+            padding: "10px 14px",
+            border: "1px solid rgba(212,160,64,0.4)",
+          }}>
+            <div style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", opacity: 0.85, marginBottom: 6, fontFamily: "monospace" }}>
+              🪱 Fertilize today
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {fertDueToday.map(p => (
+                <span key={p.name} style={{
+                  background: "rgba(255,255,255,0.15)",
+                  border: "1px solid rgba(255,255,255,0.25)",
+                  borderRadius: 20,
+                  padding: "3px 10px",
+                  fontSize: 12,
+                }}>
+                  {p.emoji} {p.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {dueToday.length === 0 && fertDueToday.length === 0 && (
+          <div style={{
+            marginTop: 14,
+            background: "rgba(255,255,255,0.1)",
+            borderRadius: 10,
+            padding: "8px 14px",
+            fontSize: 12,
+            opacity: 0.8,
+            fontStyle: "italic",
+          }}>
+            🎉 Nothing to do today
+          </div>
+        )}
+      </div>
+
+      {/* Tab bar */}
+      <div style={{
+        display: "flex",
+        borderBottom: `1px solid ${C.rule}`,
+        background: C.parchment,
+      }}>
+        {[["schedule","Calendar"], ["summary","Next Up"], ["fertilizer","Fertilize"], ["tips","Care Tips"]].map(([key, label]) => (
+          <button key={key} onClick={() => setTab(key)} style={{
+            flex: 1,
+            padding: "12px 0",
+            background: "none",
+            border: "none",
+            borderBottom: tab === key ? `2px solid ${C.moss}` : "2px solid transparent",
+            color: tab === key ? C.moss : C.muted,
+            fontSize: 11,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            fontFamily: "monospace",
+            cursor: "pointer",
+            fontWeight: tab === key ? 600 : 400,
+            marginBottom: -1,
+          }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* SCHEDULE TAB */}
+      {tab === "schedule" && (
+        <div style={{ padding: "16px 0" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", marginBottom: 12 }}>
+            <button onClick={() => setWeekOffset(o => o - 1)} style={{
+              background: "none", border: `1px solid ${C.sageLight}`,
+              color: C.moss, width: 32, height: 32, borderRadius: "50%",
+              cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center",
+            }}>‹</button>
+            <span style={{ fontSize: 12, fontFamily: "monospace", color: C.muted, letterSpacing: "0.06em" }}>
+              {MONTHS[ws.m-1]} {ws.d} – {MONTHS[we.m-1]} {we.d}
+            </span>
+            <button onClick={() => setWeekOffset(o => o + 1)} style={{
+              background: "none", border: `1px solid ${C.sageLight}`,
+              color: C.moss, width: 32, height: 32, borderRadius: "50%",
+              cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center",
+            }}>›</button>
+          </div>
+
+          <div style={{ display: "flex", paddingLeft: 140 }}>
+            {days.map(n => {
+              const dt = dayToYMD(n);
+              const isT = n === TODAY;
+              return (
+                <div key={n} style={{
+                  flex: 1, textAlign: "center",
+                  fontSize: 10, fontFamily: "monospace",
+                  letterSpacing: "0.08em", textTransform: "uppercase",
+                  color: isT ? C.moss : C.muted,
+                  fontWeight: isT ? 700 : 400,
+                  paddingBottom: 6,
+                }}>
+                  <div>{WEEKDAYS_SHORT[dayToWeekday(n)]}</div>
+                  {isT ? (
+                    <div style={{
+                      width: 20, height: 20, borderRadius: "50%",
+                      background: C.moss, color: "white",
+                      fontSize: 10, display: "inline-flex",
+                      alignItems: "center", justifyContent: "center",
+                      marginTop: 2,
+                    }}>{dt.d}</div>
+                  ) : (
+                    <div style={{ fontSize: 10, marginTop: 2 }}>{dt.d}</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {groups.map(group => {
+            const groupPlants = PLANTS.filter(p => p.method === group.method);
+            return (
+              <div key={group.method}>
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 16px 4px",
+                }}>
+                  <span style={{
+                    background: group.color, color: "white",
+                    fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase",
+                    fontFamily: "monospace", padding: "3px 10px", borderRadius: 20,
+                    whiteSpace: "nowrap",
+                  }}>{group.label}</span>
+                  <div style={{ flex: 1, height: 1, background: C.rule }} />
+                </div>
+
+                {groupPlants.map((plant, pi) => (
+                  <PlantRow key={plant.name} plant={plant} days={days} groupColor={group.color} pi={pi} />
+                ))}
+              </div>
+            );
+          })}
+
+          <div style={{ display: "flex", gap: 16, padding: "16px 16px 0", flexWrap: "wrap" }}>
+            {[
+              { color: C.moss, opacity: 0.65, label: "Watered" },
+              { color: C.terracotta, label: "Overdue" },
+              { color: C.sage, label: "Due today" },
+              { color: C.parchment, border: C.sageLight, label: "Upcoming" },
+            ].map(item => (
+              <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <div style={{
+                  width: 12, height: 12, borderRadius: "50%",
+                  background: item.color, opacity: item.opacity || 1,
+                  border: item.border ? `1.5px solid ${item.border}` : "none",
+                }} />
+                <span style={{ fontSize: 10, fontFamily: "monospace", color: C.muted, letterSpacing: "0.06em" }}>
+                  {item.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* SUMMARY TAB */}
+      {tab === "summary" && (
+        <div style={{ padding: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {sortedSummary.map(({ p, nxt }) => {
+              const dt = dayToYMD(nxt);
+              const away = nxt - TODAY;
+              const urgent = away <= 0;
+              const label = away < 0 ? "Overdue!" : away === 0 ? "Today!" : away === 1 ? "Tomorrow" : `In ${away} days`;
+              const methodColor = p.method === "bottom" ? C.moss : C.blue;
+              return (
+                <div key={p.name} style={{
+                  background: urgent ? "#fdf0ec" : C.parchment,
+                  border: `1px solid ${urgent ? "rgba(196,113,74,0.35)" : C.rule}`,
+                  borderRadius: 12,
+                  padding: "12px 14px",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                    <span style={{ fontSize: 18 }}>{p.emoji}</span>
+                    <span style={{
+                      fontSize: 8, fontFamily: "monospace", letterSpacing: "0.1em",
+                      textTransform: "uppercase", color: "white",
+                      background: methodColor, padding: "2px 6px", borderRadius: 10,
+                    }}>
+                      {p.method === "bottom" ? "⬇" : "⬆"}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: C.ink, lineHeight: 1.3, marginBottom: 4, fontFamily: "Georgia, serif" }}>
+                    {p.name}
+                  </div>
+                  <div style={{ fontSize: 10, color: urgent ? C.terracotta : C.sage, fontFamily: "monospace" }}>
+                    {label}
+                  </div>
+                  <div style={{ fontSize: 10, color: C.muted, fontFamily: "monospace" }}>
+                    {MONTHS[dt.m-1]} {dt.d}
+                  </div>
+                </div>
+              );
+            })}
+
+            {PLANTS.filter(p => p.dormant).map(p => (
+              <div key={p.name} style={{
+                background: C.parchment,
+                border: `1px solid ${C.rule}`,
+                borderRadius: 12,
+                padding: "12px 14px",
+                opacity: 0.45,
+              }}>
+                <div style={{ fontSize: 18, marginBottom: 4 }}>{p.emoji}</div>
+                <div style={{ fontSize: 12, color: C.ink, lineHeight: 1.3, marginBottom: 4, fontFamily: "Georgia, serif" }}>
+                  {p.name}
+                </div>
+                <div style={{ fontSize: 10, color: C.muted, fontFamily: "monospace" }}>
+                  Awaiting sprouts
+                </div>
+                <div style={{ fontSize: 10, color: C.muted, fontFamily: "monospace" }}>
+                  Do not water yet
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* FERTILIZER TAB */}
+      {tab === "fertilizer" && (
+        <div style={{ padding: "16px 0" }}>
+
+          {/* Legend at top */}
+          <div style={{
+            margin: "0 16px 12px",
+            background: "white",
+            border: `1px solid ${C.rule}`,
+            borderRadius: 10,
+            padding: "10px 12px",
+            fontSize: 10,
+            color: C.ink,
+            lineHeight: 1.5,
+            fontFamily: "monospace",
+          }}>
+            <span style={{ marginRight: 12 }}>🪱 <b>Worm castings</b> · top-dress</span>
+            <span style={{ marginRight: 12 }}>🍌 <b>Banana water</b> · liquid feed</span>
+            <span>🦴 <b>Bone meal</b> · mix into soil</span>
+          </div>
+
+          {/* Week nav */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 16px", marginBottom: 12 }}>
+            <button onClick={() => setFertWeekOffset(o => o - 1)} style={{
+              background: "none", border: `1px solid ${C.sageLight}`,
+              color: C.moss, width: 32, height: 32, borderRadius: "50%",
+              cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center",
+            }}>‹</button>
+            <span style={{ fontSize: 12, fontFamily: "monospace", color: C.muted, letterSpacing: "0.06em" }}>
+              {MONTHS[fws.m-1]} {fws.d} – {MONTHS[fwe.m-1]} {fwe.d}
+            </span>
+            <button onClick={() => setFertWeekOffset(o => o + 1)} style={{
+              background: "none", border: `1px solid ${C.sageLight}`,
+              color: C.moss, width: 32, height: 32, borderRadius: "50%",
+              cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center",
+            }}>›</button>
+          </div>
+
+          {/* Day header row */}
+          <div style={{ display: "flex", paddingLeft: 140 }}>
+            {fertDays.map(n => {
+              const dt = dayToYMD(n);
+              const isT = n === TODAY;
+              return (
+                <div key={n} style={{
+                  flex: 1, textAlign: "center",
+                  fontSize: 10, fontFamily: "monospace",
+                  letterSpacing: "0.08em", textTransform: "uppercase",
+                  color: isT ? C.moss : C.muted,
+                  fontWeight: isT ? 700 : 400,
+                  paddingBottom: 6,
+                }}>
+                  <div>{WEEKDAYS_SHORT[dayToWeekday(n)]}</div>
+                  {isT ? (
+                    <div style={{
+                      width: 20, height: 20, borderRadius: "50%",
+                      background: C.moss, color: "white",
+                      fontSize: 10, display: "inline-flex",
+                      alignItems: "center", justifyContent: "center",
+                      marginTop: 2,
+                    }}>{dt.d}</div>
+                  ) : (
+                    <div style={{ fontSize: 10, marginTop: 2 }}>{dt.d}</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Groups by watering method, same as Calendar */}
+          {groups.map(group => {
+            const groupPlants = PLANTS.filter(p =>
+              p.method === group.method && p.fertSchedule &&
+              (p.fertSchedule.wc !== null || p.fertSchedule.bw !== null)
+            );
+            if (groupPlants.length === 0) return null;
+            return (
+              <div key={group.method}>
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 16px 4px",
+                }}>
+                  <span style={{
+                    background: group.color, color: "white",
+                    fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase",
+                    fontFamily: "monospace", padding: "3px 10px", borderRadius: 20,
+                    whiteSpace: "nowrap",
+                  }}>{group.label}</span>
+                  <div style={{ flex: 1, height: 1, background: C.rule }} />
+                </div>
+
+                {groupPlants.map(plant => (
+                  <FertRow key={plant.name} plant={plant} days={fertDays} />
+                ))}
+              </div>
+            );
+          })}
+
+          {/* Bone meal reminder at bottom */}
+          <div style={{
+            margin: "16px 16px 0",
+            background: "rgba(196,113,74,0.08)",
+            border: `1px solid rgba(196,113,74,0.25)`,
+            borderRadius: 12,
+            padding: "12px 14px",
+          }}>
+            <div style={{ fontSize: 10, fontFamily: "monospace", color: C.terracotta, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6 }}>
+              🦴 Bone meal reminders
+            </div>
+            <div style={{ fontSize: 11, color: C.ink, lineHeight: 1.5 }}>
+              <b>Dahlias</b> — mix 60g into each planting hole when tubers go in the ground in May.<br/>
+              <b>Lavender</b> — one handful (30g) in early spring, only feeding of the year.<br/>
+              <b>Strawberry, Sunflower, Stocks</b> — already applied at planting.
+            </div>
+          </div>
+
+          {/* Legend */}
+          <div style={{ display: "flex", gap: 16, padding: "16px 16px 0", flexWrap: "wrap" }}>
+            {[
+              { color: C.moss, label: "🪱 Worm castings" },
+              { color: C.amber, label: "🍌 Banana water" },
+              { color: C.parchment, border: C.sageLight, label: "Upcoming" },
+            ].map(item => (
+              <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <div style={{
+                  width: 12, height: 12, borderRadius: "50%",
+                  background: item.color,
+                  border: item.border ? `1.5px solid ${item.border}` : "none",
+                }} />
+                <span style={{ fontSize: 10, fontFamily: "monospace", color: C.muted, letterSpacing: "0.06em" }}>
+                  {item.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* CARE TIPS TAB */}
+      {tab === "tips" && (
+        <div style={{ padding: 16 }}>
+          <p style={{ fontSize: 11, fontFamily: "monospace", color: C.muted, marginBottom: 16, lineHeight: 1.6, letterSpacing: "0.03em" }}>
+            The schedule is a guide — always confirm before watering by checking the soil and your plant's signals.
+          </p>
+          {groups.map(group => {
+            const groupPlants = PLANTS.filter(p => p.method === group.method);
+            return (
+              <div key={group.method} style={{ marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <span style={{
+                    background: group.color, color: "white",
+                    fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase",
+                    fontFamily: "monospace", padding: "3px 10px", borderRadius: 20,
+                  }}>{group.label}</span>
+                  <div style={{ flex: 1, height: 1, background: C.rule }} />
+                </div>
+                {groupPlants.map(plant => (
+                  <div key={plant.name} style={{
+                    background: "white",
+                    border: `1px solid ${C.rule}`,
+                    borderRadius: 12,
+                    padding: "14px",
+                    marginBottom: 10,
+                    opacity: plant.dormant ? 0.5 : 1,
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                      <span style={{ fontSize: 22 }}>{plant.emoji}</span>
+                      <div>
+                        <div style={{ fontSize: 14, fontFamily: "Georgia, serif", color: C.ink }}>{plant.name}</div>
+                        <div style={{ fontSize: 9, fontFamily: "monospace", color: C.muted, fontStyle: "italic" }}>{plant.latin}</div>
+                      </div>
+                    </div>
+
+                    {/* Scales strip — water need & sun level */}
+                    {(plant.waterNeed || plant.sunLevel) && (
+                      <div style={{
+                        display: "flex", gap: 8,
+                        padding: "8px 10px",
+                        background: group.color,
+                        borderRadius: 8,
+                        marginBottom: 8,
+                        color: "white",
+                      }}>
+                        {plant.waterNeed && (
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 9, fontFamily: "monospace", letterSpacing: "0.1em", textTransform: "uppercase", opacity: 0.75, marginBottom: 2 }}>
+                              💧 Water Need
+                            </div>
+                            <div style={{ fontSize: 13, letterSpacing: "0.15em" }}>
+                              {"●".repeat(plant.waterNeed)}<span style={{ opacity: 0.35 }}>{"●".repeat(5 - plant.waterNeed)}</span>
+                            </div>
+                          </div>
+                        )}
+                        {plant.sunLevel && (
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 9, fontFamily: "monospace", letterSpacing: "0.1em", textTransform: "uppercase", opacity: 0.75, marginBottom: 2 }}>
+                              ☀️ Sun Level
+                            </div>
+                            <div style={{ fontSize: 13, letterSpacing: "0.15em" }}>
+                              {"●".repeat(plant.sunLevel)}<span style={{ opacity: 0.35 }}>{"●".repeat(5 - plant.sunLevel)}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {[
+                      { icon: "👆", label: "Soil Check",      text: plant.check },
+                      { icon: "👁",  label: "Visual Signs",    text: plant.indicator },
+                      { icon: "☀️",  label: "Sunlight",        text: `${plant.sun} — ${plant.sunDetail}` },
+                      { icon: "💦",  label: "Humidity",        text: plant.humidity },
+                      { icon: "🍂",  label: "Seasonal Notes",  text: plant.seasonal },
+                      { icon: "✂️",  label: "Pruning",         text: plant.prune },
+                      { icon: "🌱",  label: "Fertilize",       text: plant.fertFreq },
+                      { icon: "🧴",  label: "Fertilizer Type", text: plant.fertType },
+                      { icon: "📋",  label: "How to Feed",     text: plant.fertDetail },
+                    ].map(({ icon, label, text }) => (
+                      <div key={label} style={{
+                        display: "flex", gap: 8, alignItems: "flex-start",
+                        padding: "7px 10px",
+                        background: C.parchment,
+                        borderRadius: 8,
+                        marginBottom: 5,
+                      }}>
+                        <span style={{ fontSize: 13, flexShrink: 0, marginTop: 1 }}>{icon}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 9, fontFamily: "monospace", color: C.moss, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 2 }}>{label}</div>
+                          <div style={{ fontSize: 11, color: C.ink, lineHeight: 1.55 }}>{text}</div>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Pro Tip callout */}
+                    {plant.proTip && (
+                      <div style={{
+                        display: "flex", gap: 8, alignItems: "flex-start",
+                        padding: "9px 11px",
+                        background: "rgba(107,158,111,0.12)",
+                        border: `1px solid rgba(107,158,111,0.3)`,
+                        borderRadius: 8,
+                        marginTop: 7,
+                      }}>
+                        <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>💡</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 9, fontFamily: "monospace", color: C.moss, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 2, fontWeight: 600 }}>Pro Tip</div>
+                          <div style={{ fontSize: 11, color: C.ink, lineHeight: 1.55, fontStyle: "italic" }}>{plant.proTip}</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PlantRow({ plant, days, groupColor }) {
+  return (
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      borderTop: `1px solid ${C.rule}`,
+      minHeight: 44,
+      opacity: plant.dormant ? 0.4 : 1,
+    }}>
+      <div style={{ width: 140, minWidth: 140, paddingLeft: 16, paddingRight: 8 }}>
+        <div style={{ fontSize: 11, color: C.ink, lineHeight: 1.2, fontFamily: "Georgia, serif" }}>
+          {plant.emoji} {plant.name}
+        </div>
+        <div style={{ fontSize: 9, color: C.muted, fontFamily: "monospace", marginTop: 1 }}>
+          {plant.dormant ? "Awaiting sprouts" : plant.days === 1 ? "Daily" : `Every ${plant.days}d`}
+        </div>
+      </div>
+
+      {days.map(n => {
+        const isPast = n < TODAY;
+        const isToday = n === TODAY;
+        const water = isWaterDay(plant, n);
+        const base = plant.lastWatered != null ? plant.lastWatered : LAST_WATERED;
+        const isLW = n === base;
+
+        let barColor = "#a8c9a8";
+        let barPct = 0;
+        if (!plant.dormant && !isPast) {
+          const pos = ((n - base) % plant.days + plant.days) % plant.days;
+          barPct = Math.round((1 - pos / plant.days) * 100);
+          const daysLeft = plant.days - pos;
+          barColor = daysLeft <= 1 ? C.terracotta : daysLeft <= 2 ? C.gold : C.sageLight;
+        }
+
+        let dotBg = "none", dotColor = "transparent", dotText = "";
+        if (water || isLW) {
+          if (isPast || isLW) { dotBg = C.moss; dotColor = "white"; dotText = "✓"; }
+          else if (isToday) { dotBg = C.sage; dotColor = "white"; dotText = "💧"; }
+          else { dotBg = C.parchment; dotColor = C.sage; dotText = "💧"; }
+        }
+
+        return (
+          <div key={n} style={{
+            flex: 1,
+            height: 44,
+            position: "relative",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: isToday ? "rgba(45,74,46,0.04)" : "transparent",
+          }}>
+            {!plant.dormant && !isPast && (
+              <div style={{
+                position: "absolute", left: 2, right: 2,
+                top: "50%", transform: "translateY(-50%)",
+                height: 6, borderRadius: 3,
+                background: "#e8e0d0", overflow: "hidden",
+              }}>
+                <div style={{
+                  height: "100%", width: `${barPct}%`,
+                  background: barColor, opacity: 0.6,
+                  borderRadius: 3,
+                }} />
+              </div>
+            )}
+
+            {dotText && (
+              <div style={{
+                position: "absolute",
+                width: 22, height: 22,
+                borderRadius: "50%",
+                background: dotBg,
+                border: dotBg === C.parchment ? `1.5px solid ${C.sageLight}` : "none",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: dotText === "✓" ? 10 : 11,
+                color: dotColor,
+                boxShadow: isToday && dotText === "💧" ? `0 2px 8px rgba(107,158,111,0.5)` : "none",
+                opacity: isPast ? 0.7 : 1,
+              }}>
+                {dotText}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function FertRow({ plant, days }) {
+  // Figure out the next upcoming fert day (for progress bar)
+  const nextFert = nextFertDay(plant);
+
+  // Determine "last fert day" — used as the origin for the progress bar.
+  // For worm castings applied today, that's WORM_CASTINGS_TODAY.
+  // Otherwise use TODAY as a reasonable origin so the bar fills as the next fert approaches.
+  let lastFertOrigin = TODAY;
+  if (WC_APPLIED_TODAY.includes(plant.name)) {
+    lastFertOrigin = WORM_CASTINGS_TODAY;
+  }
+
+  return (
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      borderTop: `1px solid ${C.rule}`,
+      minHeight: 44,
+      opacity: plant.dormant ? 0.4 : 1,
+    }}>
+      <div style={{ width: 140, minWidth: 140, paddingLeft: 16, paddingRight: 8 }}>
+        <div style={{ fontSize: 11, color: C.ink, lineHeight: 1.2, fontFamily: "Georgia, serif" }}>
+          {plant.emoji} {plant.name}
+        </div>
+        <div style={{ fontSize: 9, color: C.muted, fontFamily: "monospace", marginTop: 1 }}>
+          {plant.fertType.replace(/^[^\w]+/, "")}
+        </div>
+      </div>
+
+      {days.map(n => {
+        const isPast = n < TODAY;
+        const isToday = n === TODAY;
+        const { wc, bw } = fertTypesOnDay(plant, n);
+        const isAppliedToday = isToday && WC_APPLIED_TODAY.includes(plant.name);
+
+        // Progress bar: how close we are to nextFert from lastFertOrigin
+        let barColor = C.sageLight;
+        let barPct = 0;
+        if (nextFert !== null && !isPast && !plant.dormant) {
+          const total = nextFert - lastFertOrigin;
+          if (total > 0) {
+            const elapsed = n - lastFertOrigin;
+            const ratio = Math.max(0, Math.min(1, elapsed / total));
+            barPct = Math.round(ratio * 100);
+            const daysLeft = nextFert - n;
+            barColor = daysLeft <= 2 ? C.terracotta : daysLeft <= 5 ? C.gold : C.sageLight;
+          }
+        }
+
+        // Decide what dot(s) to show on this day
+        let dotBg = "none", dotColor = "transparent", dotText = "";
+        if (isAppliedToday) {
+          dotBg = C.moss; dotColor = "white"; dotText = "✓";
+        } else if (wc && bw) {
+          // Both — show a combined pill
+          dotBg = C.moss; dotColor = "white"; dotText = "🪱🍌";
+        } else if (wc) {
+          if (isPast) { dotBg = C.moss; dotColor = "white"; dotText = "✓"; }
+          else if (isToday) { dotBg = C.moss; dotColor = "white"; dotText = "🪱"; }
+          else { dotBg = C.parchment; dotColor = C.moss; dotText = "🪱"; }
+        } else if (bw) {
+          if (isPast) { dotBg = C.amber; dotColor = "white"; dotText = "✓"; }
+          else if (isToday) { dotBg = C.amber; dotColor = "white"; dotText = "🍌"; }
+          else { dotBg = C.parchment; dotColor = C.amber; dotText = "🍌"; }
+        }
+
+        return (
+          <div key={n} style={{
+            flex: 1,
+            height: 44,
+            position: "relative",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: isToday ? "rgba(45,74,46,0.04)" : "transparent",
+          }}>
+            {!plant.dormant && !isPast && nextFert !== null && (
+              <div style={{
+                position: "absolute", left: 2, right: 2,
+                top: "50%", transform: "translateY(-50%)",
+                height: 6, borderRadius: 3,
+                background: "#e8e0d0", overflow: "hidden",
+              }}>
+                <div style={{
+                  height: "100%", width: `${barPct}%`,
+                  background: barColor, opacity: 0.6,
+                  borderRadius: 3,
+                }} />
+              </div>
+            )}
+
+            {dotText && (
+              <div style={{
+                position: "absolute",
+                minWidth: 22, height: 22,
+                padding: dotText.length > 2 ? "0 5px" : 0,
+                borderRadius: 11,
+                background: dotBg,
+                border: dotBg === C.parchment ? `1.5px solid ${C.sageLight}` : "none",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: dotText === "✓" ? 10 : 10,
+                color: dotColor,
+                boxShadow: isToday && dotText !== "✓" ? `0 2px 8px rgba(107,158,111,0.4)` : "none",
+                opacity: isPast ? 0.7 : 1,
+              }}>
+                {dotText}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+
+</body>
+</html>
